@@ -5,6 +5,7 @@ import math
 import random
 import time
 
+
 TIME_STEP = 0.5
 
 class MovingBody(Agent):
@@ -205,9 +206,10 @@ class Photon(MovingBody):
 
 class Ship(MovingBody):
     TURNS_IN_360   = 24
-    IMPULSE_FRAMES = 4
-    ACCELERATION   = 0.05
-    MAX_SPEED      = 2.0
+    IMPULSE_FRAMES = 1
+    ACCELERATION   = 0.03
+    MAX_SPEED      = 1.0
+    forward = True
 
     def __init__(self,world):
         position0    = Point2D()
@@ -231,6 +233,17 @@ class Ship(MovingBody):
         self.angle -= 360.0 / self.TURNS_IN_360
 
     def speed_up(self):
+        if not self.forward:
+            self.velocity = Vector2D()
+        self.forward = True
+        self.ACCELERATION = 0.03
+        self.impulse = self.IMPULSE_FRAMES
+
+    def slow_down(self):
+        if self.forward:
+            self.velocity = Vector2D()
+        self.forward = False
+        self.ACCELERATION = -0.03
         self.impulse = self.IMPULSE_FRAMES
 
     def shoot(self):
@@ -240,13 +253,15 @@ class Ship(MovingBody):
         h  = self.get_heading()
         hp = h.perp()
         p1 = self.position + h
-        p2 = self.position + hp * 0.5
-        p3 = self.position - hp * 0.5
+        p2 = self.position + hp * 0.9
+        p3 = self.position - hp * 0.9
         return [p1,p2,p3]
 
     def steer(self):
         if self.impulse > 0:
             self.impulse -= 1
+            #print("Vel: ", self.velocity)
+            #print("GH+ACL: ", self.get_heading() * self.ACCELERATION)
             return self.get_heading() * self.ACCELERATION
         else:
             return Vector2D(0.0,0.0)
@@ -257,6 +272,23 @@ class Ship(MovingBody):
         if m > self.MAX_SPEED:
             self.velocity = self.velocity * (self.MAX_SPEED / m)
             self.impulse = 0
+
+class Planet(MovingBody):
+    INITIAL_SPEED = 2.0   
+
+    def __init__(self, position0, world):
+        velocity0 = Vector2D.random() * self.INITIAL_SPEED
+        MovingBody.__init__(self, position0, velocity0, world)
+
+    def color(self):
+        return "#add8e6"  
+
+    def shape(self):
+        p1 = self.position + Vector2D( 0.105, 0.105)       
+        p2 = self.position + Vector2D(-0.105, 0.105)        
+        p3 = self.position + Vector2D(-0.105,-0.105)        
+        p4 = self.position + Vector2D( 0.105,-0.105)
+        return [p1,p2,p3,p4]       
 
 class PlayAsteroids(Game):
 
@@ -277,19 +309,38 @@ class PlayAsteroids(Game):
 
         self.ship = Ship(self)
 
+#log = Text(game, state='disabled', width=80, height=24, wrap='none')
+#log.grid()
+#numlines = log.index('end - 1 line').split('.')[0]
+#log['state'] = 'normal'
+#log.insert('end', '!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#log['state'] = 'disabled'
+
     def max_asteroids(self):
         return min(2 + self.level,self.MAX_ASTEROIDS)
 
+    def movement(self,event):
+        if len(self.commands) == 2 and (('i' in self.commands and 'j' in self.commands) or ('k' in self.commands and 'j' in self.commands) or ('i' in self.commands and 'l' in self.commands) or ('k' in self.commands and 'l' in self.commands)):
+            print("double movement circular")
+        else:
+            if event.char == 'i':
+                self.ship.speed_up()
+            elif event.char == 'j':
+                self.ship.turn_left()
+            elif event.char == 'l':
+                self.ship.turn_right()
+            elif event.char == 'k':
+                self.ship.slow_down()
+            elif event.char == ' ':
+                self.ship.shoot()
+            
     def handle_keypress(self,event):
         Game.handle_keypress(self,event)
-        if event.char == 'i':
-            self.ship.speed_up()
-        elif event.char == 'j':
-            self.ship.turn_left()
-        elif event.char == 'l':
-            self.ship.turn_right()
-        elif event.char == ' ':
-            self.ship.shoot()
+        self.movement(event)
+
+    def handle_keyrelease(self,event):
+        Game.handle_keyrelease(self,event)
+        self.movement(event)
         
     def update(self):
 
@@ -314,3 +365,4 @@ game = PlayAsteroids()
 while not game.GAME_OVER:
     time.sleep(1.0/60.0)
     game.update()
+

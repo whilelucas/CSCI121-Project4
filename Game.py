@@ -58,6 +58,7 @@ class Game(Frame):
         self.agents = []
         self.GAME_OVER = False
 
+        self.commands = []
         # Initialize the graphics window.
         self.root = Tk()
         self.root.title(name)
@@ -70,7 +71,8 @@ class Game(Frame):
         self.bind_all('<Motion>',self.handle_mouse_motion)
         self.canvas.bind('<Button-1>',self.handle_mouse_press)
         self.canvas.bind('<ButtonRelease-1>',self.handle_mouse_release)
-        self.bind_all('<Key>',self.handle_keypress)
+        self.bind_all('<KeyPress>',self.handle_keypress)
+        self.bind_all('<KeyRelease>',self.handle_keyrelease)
 
         self.canvas.pack()
         if console_lines > 0:
@@ -142,5 +144,11 @@ class Game(Frame):
         #print("MOUSE RELEASED",self.mouse_down)
 
     def handle_keypress(self,event):
+        if not event.char in self.commands and len(self.commands) < 2:
+            self.commands.append(event.char)
         if event.char == 'q':
             self.GAME_OVER = True
+
+    def handle_keyrelease(self,event):
+        if event.char in self.commands:
+            self.commands.pop(self.commands.index(event.char))
