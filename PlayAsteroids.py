@@ -47,13 +47,27 @@ class Shootable(MovingBody):
     def is_hit_by(self, photon):
         return ((self.position - photon.position).magnitude() < self.radius)
 
+    def is_hit_by_poly(self, photon):
+        photon.shape()
+        for p in photon.shape():        
+            if (self.position - p).magnitude() < self.radius:
+                return True
+        return False
+
     def explode(self):
         self.world.score += self.WORTH
+        self.world.tot_score+=self.WORTH
+        if self.world.score>=70:
+            self.world.level+=1            
+            self.world.score=0            
         if self.SHRAPNEL_CLASS == None:
             return
         for _ in range(self.SHRAPNEL_PIECES):
             self.SHRAPNEL_CLASS(self.position,self.world)
         self.leave()
+
+
+
 
 class Asteroid(Shootable):
     WORTH     = 5
@@ -66,6 +80,8 @@ class Asteroid(Shootable):
         self.make_shape()
 
     def choose_velocity(self):
+        #if self.world.level==2:
+            #return Vector2D.random() * random.uniform(self.MIN_SPEED,self.MAX_SPEED+1) 
         return Vector2D.random() * random.uniform(self.MIN_SPEED,self.MAX_SPEED) 
         
     def make_shape(self):
@@ -180,21 +196,41 @@ class LargeAsteroid(ParentAsteroid):
         return "#9890A0"
 
 class Photon(MovingBody):
-    INITIAL_SPEED = 2.0 * SmallAsteroid.MAX_SPEED
-    LIFETIME      = 40
+    INITIAL_SPEED = 2.0 * SmallAsteroid.MAX_SPEED       
 
     def __init__(self,source,world):
         self.age  = 0
         v0 = source.velocity + (source.get_heading() * self.INITIAL_SPEED)
-        MovingBody.__init__(self, source.position, v0, world)
+        MovingBody.__init__(self, source.position, v0, world) 
+
+    def lifetime(self):
+        if self.world.level == 2:
+            return 45
+        elif self.world.level == 3:
+            return 40
+        elif self.world.level == 4:
+            return 25
+        elif self.world.level == 5:
+            return 10
+        else:
+            return 50
 
     def color(self):
-        return "#8080FF"
+        if self.world.level == 2:            
+            return "#FF0000"
+        elif self.world.level == 3:            
+            return "#00FF00"
+        elif self.world.level == 4:          
+            return "#0000FF"
+        elif self.world.level == 5:            
+            return "#FFEAEA"
+        else:
+            return "#FFEDFF"
 
     def update(self):
         MovingBody.update(self)
         self.age += 1
-        if self.age >= self.LIFETIME:
+        if self.age >= self.lifetime():
             self.leave()
         else:
             targets = [a for a in self.world.agents if isinstance(a,Shootable)]
@@ -210,6 +246,8 @@ class Ship(MovingBody):
     ACCELERATION   = 0.03
     MAX_SPEED      = 1.0
     forward = True
+    IS_HIT=False
+    
 
     def __init__(self,world):
         position0    = Point2D()
@@ -218,8 +256,11 @@ class Ship(MovingBody):
         self.speed   = 0.0
         self.angle   = 90.0
         self.impulse = 0
+        self.health=10
 
     def color(self):
+        if self.health<=5:
+            return "#B22222"
         return "#F0C080"
 
     def get_heading(self):
@@ -259,9 +300,7 @@ class Ship(MovingBody):
 
     def steer(self):
         if self.impulse > 0:
-            self.impulse -= 1
-            #print("Vel: ", self.velocity)
-            #print("GH+ACL: ", self.get_heading() * self.ACCELERATION)
+            self.impulse -= 1            
             return self.get_heading() * self.ACCELERATION
         else:
             return Vector2D(0.0,0.0)
@@ -273,22 +312,20 @@ class Ship(MovingBody):
             self.velocity = self.velocity * (self.MAX_SPEED / m)
             self.impulse = 0
 
-class Planet(MovingBody):
-    INITIAL_SPEED = 2.0   
+    def update(self): 
+        MovingBody.update(self)          
+        if self.health <= 0:
+            self.leave()
+        else:
+            targets = [a for a in self.world.agents if isinstance(a,Shootable)]
+            for t in targets:
+                if t.is_hit_by_poly(self):
+                    t.explode()
+                    IS_HIT=True
+                    self.health-=1    
+                    print(self.health)                
+                    return
 
-    def __init__(self, position0, world):
-        velocity0 = Vector2D.random() * self.INITIAL_SPEED
-        MovingBody.__init__(self, position0, velocity0, world)
-
-    def color(self):
-        return "#add8e6"  
-
-    def shape(self):
-        p1 = self.position + Vector2D( 0.105, 0.105)       
-        p2 = self.position + Vector2D(-0.105, 0.105)        
-        p3 = self.position + Vector2D(-0.105,-0.105)        
-        p4 = self.position + Vector2D( 0.105,-0.105)
-        return [p1,p2,p3,p4]       
 
 class PlayAsteroids(Game):
 
@@ -297,32 +334,27 @@ class PlayAsteroids(Game):
     INTRODUCE_CHANCE = 0.01
     
     def __init__(self):
-        Game.__init__(self,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped')
+        Game.__init__(self,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped',console_lines=7)
+
+        self.report("Hi "+Player_Name+" Welcome!!!")
+        self.report("Hit j and l to turn, i to create thrust, k to slow down and SPACE to shoot. Press q to quit.")
+        self.report("Press 'a' to start.")
+        self.report()
 
         self.number_of_asteroids = 0
         self.number_of_shrapnel = 0
         self.level = 1
-        self.score = 0
-
+        self.score = 0       
+        self.tot_score=0
         self.before_start_ticks = self.DELAY_START
         self.started = False
 
         self.ship = Ship(self)
 
-#log = Text(game, state='disabled', width=80, height=24, wrap='none')
-#log.grid()
-#numlines = log.index('end - 1 line').split('.')[0]
-#log['state'] = 'normal'
-#log.insert('end', '!!!!!!!!!!!!!!!!!!!!!!!!!!')
-#log['state'] = 'disabled'
-
     def max_asteroids(self):
         return min(2 + self.level,self.MAX_ASTEROIDS)
 
-    def movement(self,event):
-        if len(self.commands) == 2 and (('i' in self.commands and 'j' in self.commands) or ('k' in self.commands and 'j' in self.commands) or ('i' in self.commands and 'l' in self.commands) or ('k' in self.commands and 'l' in self.commands)):
-            print("double movement circular")
-        else:
+    def movement(self,event):       
             if event.char == 'i':
                 self.ship.speed_up()
             elif event.char == 'j':
@@ -332,15 +364,35 @@ class PlayAsteroids(Game):
             elif event.char == 'k':
                 self.ship.slow_down()
             elif event.char == ' ':
-                self.ship.shoot()
+                self.ship.shoot()          
+
             
     def handle_keypress(self,event):
         Game.handle_keypress(self,event)
         self.movement(event)
+        self.start(event)
 
     def handle_keyrelease(self,event):
         Game.handle_keyrelease(self,event)
         self.movement(event)
+        self.start(event)
+
+    def start(self,event):
+        if event.char=='a':
+            return True              
+
+    def give_score(self):
+        return self.report("Current Score: "+str(self.score))
+
+    def give_level(self):
+        return self.report("Current Level: "+str(self.level))
+
+    def give_health(self):
+        return self.report("Current Health: "+str(self.ship.health))
+
+    def give_tot_score(self):
+        return self.report(Player_Name+", Your Total Score is: "+str(self.tot_score))
+
         
     def update(self):
 
@@ -357,12 +409,22 @@ class PlayAsteroids(Game):
             if not tense and random.random() < self.INTRODUCE_CHANCE:
                 LargeAsteroid(self)
 
-        Game.update(self)
+        Game.update(self)  
+        if self.started:
+            self.give_score()
+            self.give_level()
+            self.give_health()
+            self.give_tot_score()
+            self.report()  
+
+                
+        
         
 
-print("Hit j and l to turn, i to create thrust, and SPACE to shoot. Press q to quit.")
+
+Player_Name=input("Hi I'm AstroSheep. I eat Asteroids. And you are? ")
 game = PlayAsteroids()
-while not game.GAME_OVER:
-    time.sleep(1.0/60.0)
-    game.update()
+while not game.GAME_OVER:    
+        time.sleep(1.0/60.0)
+        game.update()
 
