@@ -120,12 +120,12 @@ class Vector2D:
         return Vector2D(0.0-self.dx, 0.0-self.dy)
 
     def times(self, amount):
-        assert(type(amount) == float)
-        return Vector2D(amount*self.dx, amount*self.dy)
+        assert(type(amount) == float or type(amount) == int)
+        return Vector2D(float(amount)*self.dx, float(amount)*self.dy)
 
     def over(self, amount):
-        assert(type(amount) == float)
-        return Vector2D(self.dx/amount, self.dy/amount)
+        assert(type(amount) == float or type(amount) == int)
+        return Vector2D(self.dx/float(amount), self.dy/float(amount))
 
     def magnitude(self):
         return math.sqrt(self.dot(self))
@@ -146,7 +146,7 @@ class Vector2D:
     __neg__ = negated
     __mul__ = times
     __rmul__ = times
-    __div__ = over
+    __truediv__ = over
     x = cross
     __str__ = to_string
     __repr__ = to_string

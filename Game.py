@@ -46,7 +46,7 @@ class Game(Frame):
     # bodies within the frame of the world. (For example, 'wrapped' 
     # yields "SPACEWAR" topology, i.e. a torus.)
     #
-    def __init__(self, name, w, h, ww, wh, topology = 'wrapped', console_lines = 0):
+    def __init__(self, root, name, w, h, ww, wh, topology = 'wrapped', console_lines = 0):
 
         # Register the world coordinate and graphics parameters.
         self.WINDOW_WIDTH = ww
@@ -60,7 +60,7 @@ class Game(Frame):
 
         self.commands = []
         # Initialize the graphics window.
-        self.root = Tk()
+        self.root = root
         self.root.title(name)
         Frame.__init__(self, self.root)
         self.canvas = Canvas(self.root, width=self.WINDOW_WIDTH, height=self.WINDOW_HEIGHT)

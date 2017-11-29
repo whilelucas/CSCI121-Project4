@@ -5,7 +5,6 @@ import math
 import random
 import time
 
-
 TIME_STEP = 0.5
 
 class MovingBody(Agent):
@@ -29,13 +28,12 @@ class MovingBody(Agent):
         return Vector2D(0.0)
 
     def update(self):
-        self.position = self.position + self.velocity * TIME_STEP
-        self.velocity = self.velocity + self.accel * TIME_STEP
+        self.position += self.velocity * TIME_STEP
+        self.velocity += self.accel * TIME_STEP
         self.accel    = self.steer()
         self.world.trim(self)
 
 class Shootable(MovingBody):
-
     SHRAPNEL_CLASS  = None
     SHRAPNEL_PIECES = 0
     WORTH           = 1
@@ -65,9 +63,6 @@ class Shootable(MovingBody):
         for _ in range(self.SHRAPNEL_PIECES):
             self.SHRAPNEL_CLASS(self.position,self.world)
         self.leave()
-
-
-
 
 class Asteroid(Shootable):
     WORTH     = 5
@@ -241,12 +236,12 @@ class Photon(MovingBody):
                     return
 
 class Ship(MovingBody):
-    TURNS_IN_360   = 24
-    IMPULSE_FRAMES = 1
+    TURNS_IN_360   = 48
+    IMPULSE_FRAMES = 2
     ACCELERATION   = 0.03
     MAX_SPEED      = 1.0
-    forward = True
     IS_HIT=False
+    forward = True
     
 
     def __init__(self,world):
@@ -269,22 +264,19 @@ class Ship(MovingBody):
         
     def turn_left(self):
         self.angle += 360.0 / self.TURNS_IN_360
+        self.velocity = self.get_heading()
 
     def turn_right(self):
         self.angle -= 360.0 / self.TURNS_IN_360
+        self.velocity = self.get_heading()
 
     def speed_up(self):
-        if not self.forward:
-            self.velocity = Vector2D()
-        self.forward = True
-        self.ACCELERATION = 0.03
+        #self.ACCELERATION = 0.03
         self.impulse = self.IMPULSE_FRAMES
 
     def slow_down(self):
-        if self.forward:
-            self.velocity = Vector2D()
-        self.forward = False
-        self.ACCELERATION = -0.03
+        self.velocity = -self.velocity
+        #self.ACCELERATION = -0.03
         self.impulse = self.IMPULSE_FRAMES
 
     def shoot(self):
@@ -294,9 +286,12 @@ class Ship(MovingBody):
         h  = self.get_heading()
         hp = h.perp()
         p1 = self.position + h
-        p2 = self.position + hp * 0.9
-        p3 = self.position - hp * 0.9
-        return [p1,p2,p3]
+        p2 = self.position + hp * 0.5
+        p3 = self.position - hp * 0.5
+        p4x = (p1.x + p2.x + p3.x) / 3
+        p4y = (p1.y + p2.y + p3.y) / 3
+        p4 = Point2D(p4x, p4y)
+        return [p1,p2,p4,p3]
 
     def steer(self):
         if self.impulse > 0:
@@ -305,12 +300,12 @@ class Ship(MovingBody):
         else:
             return Vector2D(0.0,0.0)
 
-    def trim_physics(self):
-        MovingBody.trim_physics(self)
-        m = self.velocity.magnitude()
-        if m > self.MAX_SPEED:
-            self.velocity = self.velocity * (self.MAX_SPEED / m)
-            self.impulse = 0
+    #def trim_physics(self):
+    #    MovingBody.trim_physics(self)
+    #    m = self.velocity.magnitude()
+    #    if m > self.MAX_SPEED:
+    #        self.velocity = self.velocity * (self.MAX_SPEED / m)
+    #        self.impulse = 0
 
     def update(self): 
         MovingBody.update(self)          
@@ -326,15 +321,14 @@ class Ship(MovingBody):
                     print(self.health)                
                     return
 
-
 class PlayAsteroids(Game):
 
     DELAY_START      = 150
     MAX_ASTEROIDS    = 6
     INTRODUCE_CHANCE = 0.01
     
-    def __init__(self):
-        Game.__init__(self,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped',console_lines=7)
+    def __init__(self,root):
+        Game.__init__(self,root,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped',console_lines=7)
 
         self.report("Hi "+Player_Name+" Welcome!!!")
         self.report("Hit j and l to turn, i to create thrust, k to slow down and SPACE to shoot. Press q to quit.")
@@ -345,7 +339,7 @@ class PlayAsteroids(Game):
         self.number_of_shrapnel = 0
         self.level = 1
         self.score = 0       
-        self.tot_score=0
+        self.tot_score = 0
         self.before_start_ticks = self.DELAY_START
         self.started = False
 
@@ -354,19 +348,20 @@ class PlayAsteroids(Game):
     def max_asteroids(self):
         return min(2 + self.level,self.MAX_ASTEROIDS)
 
-    def movement(self,event):       
-            if event.char == 'i':
-                self.ship.speed_up()
-            elif event.char == 'j':
-                self.ship.turn_left()
-            elif event.char == 'l':
-                self.ship.turn_right()
-            elif event.char == 'k':
-                self.ship.slow_down()
-            elif event.char == ' ':
-                self.ship.shoot()          
+    def movement(self,event):
+        if len(self.commands) == 2 and (('i' in self.commands and 'j' in self.commands) or ('k' in self.commands and 'j' in self.commands) or ('i' in self.commands and 'l' in self.commands) or ('k' in self.commands and 'l' in self.commands)):
+            print("double movement circular")
+        if event.char == 'i':
+            self.ship.speed_up()
+        elif event.char == 'j':
+            self.ship.turn_left()
+        elif event.char == 'l':
+            self.ship.turn_right()
+        elif event.char == 'k':
+            self.ship.slow_down()
+        elif event.char == ' ':
+            self.ship.shoot()          
 
-            
     def handle_keypress(self,event):
         Game.handle_keypress(self,event)
         self.movement(event)
@@ -392,17 +387,15 @@ class PlayAsteroids(Game):
 
     def give_tot_score(self):
         return self.report(Player_Name+", Your Total Score is: "+str(self.tot_score))
-
         
     def update(self):
-
-        # Are we waiting to toss asteroids out?
+        #Are we waiting to toss asteroids out?
         if self.before_start_ticks > 0:
             self.before_start_ticks -= 1
         else:
             self.started = True
         
-        # Should we toss a new asteroid out?
+        #Should we toss a new asteroid out?
         if self.started:
             tense = (self.number_of_asteroids >= self.max_asteroids())
             tense = tense or (self.number_of_shrapnel >= 2*self.level)
@@ -417,14 +410,11 @@ class PlayAsteroids(Game):
             self.give_tot_score()
             self.report()  
 
-                
-        
-        
 
 
 Player_Name=input("Hi I'm AstroSheep. I eat Asteroids. And you are? ")
-game = PlayAsteroids()
+root = Tk()
+game = PlayAsteroids(root)
 while not game.GAME_OVER:    
         time.sleep(1.0/60.0)
         game.update()
-
