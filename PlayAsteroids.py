@@ -1,4 +1,6 @@
 from tkinter import *
+from tkinter import font
+from tkinter import ttk
 from Game import Game, Agent
 from geometry import Point2D, Vector2D
 import math
@@ -6,6 +8,10 @@ import random
 import time
 
 TIME_STEP = 0.5
+FORWARDLEFT  = 'forwardleft'
+FORWARDRIGHT = 'forwardright'
+BACKLEFT     = 'backleft'
+BACKRIGHT    = 'backright'
 
 class MovingBody(Agent):
 
@@ -195,7 +201,8 @@ class Photon(MovingBody):
 
     def __init__(self,source,world):
         self.age  = 0
-        v0 = source.velocity + (source.get_heading() * self.INITIAL_SPEED)
+        sourceSpeed = source.get_heading() if source.forward else (source.get_heading() * 2)
+        v0 = source.velocity + (sourceSpeed * self.INITIAL_SPEED)
         MovingBody.__init__(self, source.position, v0, world) 
 
     def lifetime(self):
@@ -236,14 +243,13 @@ class Photon(MovingBody):
                     return
 
 class Ship(MovingBody):
-    TURNS_IN_360   = 48
-    IMPULSE_FRAMES = 2
-    ACCELERATION   = 0.03
-    MAX_SPEED      = 1.0
+    TURNS_IN_360   = 24
+    #IMPULSE_FRAMES = 2
+    #ACCELERATION   = 0.03
+    #MAX_SPEED      = 1.0
     IS_HIT=False
     forward = True
     
-
     def __init__(self,world):
         position0    = Point2D()
         velocity0    = Vector2D(0.0,0.0)
@@ -261,23 +267,46 @@ class Ship(MovingBody):
     def get_heading(self):
         angle = self.angle * math.pi / 180.0
         return Vector2D(math.cos(angle), math.sin(angle))
-        
-    def turn_left(self):
-        self.angle += 360.0 / self.TURNS_IN_360
-        self.velocity = self.get_heading()
 
-    def turn_right(self):
-        self.angle -= 360.0 / self.TURNS_IN_360
-        self.velocity = self.get_heading()
+    #Manoeuvring Methods
+    def rotate(self, left, freeze=True):
+        if freeze:
+            self.velocity = Vector2D()
+        rotation = 360.0 / self.TURNS_IN_360
+        rotation = rotation if left else -rotation
+        self.angle += rotation
 
-    def speed_up(self):
-        #self.ACCELERATION = 0.03
-        self.impulse = self.IMPULSE_FRAMES
+    def circular(self, direction):
+        print(direction)
+        if direction == BACKRIGHT:
+            self.forward = False
+            self.rotate(False,False)
+            self.velocity = -self.get_heading()
+        elif direction == BACKLEFT:
+            self.forward = False
+            self.rotate(True,False)
+            self.velocity = -self.get_heading()
+        elif direction == FORWARDRIGHT:
+            self.forward = True
+            self.rotate(False,False)
+            self.velocity = self.get_heading()
+        elif direction == FORWARDLEFT:
+            self.forward = True
+            self.rotate(True,False)
+            self.velocity = self.get_heading()
 
-    def slow_down(self):
-        self.velocity = -self.velocity
-        #self.ACCELERATION = -0.03
-        self.impulse = self.IMPULSE_FRAMES
+    def normalMovement(self, forward):
+        self.forward = forward
+        self.velocity = self.get_heading() if forward else -self.get_heading()
+
+    def auto_slowdown(self):
+        if self.velocity == Vector2D():
+            return
+        self.velocity /= 1.005
+        print(self.velocity.magnitude())
+        if self.velocity.magnitude() < 0.75:
+            self.velocity = Vector2D()
+            self.forward = True
 
     def shoot(self):
         Photon(self, self.world)
@@ -285,9 +314,9 @@ class Ship(MovingBody):
     def shape(self):
         h  = self.get_heading()
         hp = h.perp()
-        p1 = self.position + h
-        p2 = self.position + hp * 0.5
-        p3 = self.position - hp * 0.5
+        p1 = self.position + h * 2
+        p2 = self.position + hp * 0.75
+        p3 = self.position - hp * 0.75
         p4x = (p1.x + p2.x + p3.x) / 3
         p4y = (p1.y + p2.y + p3.y) / 3
         p4 = Point2D(p4x, p4y)
@@ -307,8 +336,9 @@ class Ship(MovingBody):
     #        self.velocity = self.velocity * (self.MAX_SPEED / m)
     #        self.impulse = 0
 
-    def update(self): 
-        MovingBody.update(self)          
+    def update(self):
+        self.position += self.velocity * TIME_STEP
+        self.world.trim(self)          
         if self.health <= 0:
             self.leave()
         else:
@@ -330,9 +360,9 @@ class PlayAsteroids(Game):
     def __init__(self,root):
         Game.__init__(self,root,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped',console_lines=7)
 
-        self.report("Hi "+Player_Name+" Welcome!!!")
-        self.report("Hit j and l to turn, i to create thrust, k to slow down and SPACE to shoot. Press q to quit.")
-        self.report("Press 'a' to start.")
+        self.report("Welcome, "+Player_Name.title()+"!")
+        self.report("Hit 'j' and 'l' to turn, 'i' to create thrust, 'k' to move backwards and the spacebar to shoot. Press 'q' to quit.")
+        self.report("Press 'a' to start!")
         self.report()
 
         self.number_of_asteroids = 0
@@ -348,28 +378,33 @@ class PlayAsteroids(Game):
     def max_asteroids(self):
         return min(2 + self.level,self.MAX_ASTEROIDS)
 
-    def movement(self,event):
+    def movement(self):
         if len(self.commands) == 2 and (('i' in self.commands and 'j' in self.commands) or ('k' in self.commands and 'j' in self.commands) or ('i' in self.commands and 'l' in self.commands) or ('k' in self.commands and 'l' in self.commands)):
-            print("double movement circular")
-        if event.char == 'i':
-            self.ship.speed_up()
-        elif event.char == 'j':
-            self.ship.turn_left()
-        elif event.char == 'l':
-            self.ship.turn_right()
-        elif event.char == 'k':
-            self.ship.slow_down()
-        elif event.char == ' ':
-            self.ship.shoot()          
+            direction = ""
+            if 'i' in self.commands and 'j' in self.commands:
+                direction = FORWARDLEFT
+            elif 'k' in self.commands and 'j' in self.commands:
+                direction = BACKLEFT   
+            elif 'i' in self.commands and 'l' in self.commands:
+                direction = FORWARDRIGHT
+            elif 'k' in self.commands and 'l' in self.commands:
+                direction = BACKRIGHT
+            self.ship.circular(direction)
+        elif len(self.commands) == 1:
+            command = self.commands[0]
+            if command == 'i':
+                self.ship.normalMovement(True)
+            elif command == 'j':
+                self.ship.rotate(True)
+            elif command == 'l':
+                self.ship.rotate(False)
+            elif command == 'k':
+                self.ship.normalMovement(False)        
 
     def handle_keypress(self,event):
         Game.handle_keypress(self,event)
-        self.movement(event)
-        self.start(event)
-
-    def handle_keyrelease(self,event):
-        Game.handle_keyrelease(self,event)
-        self.movement(event)
+        if event.char == ' ':
+            self.ship.shoot()
         self.start(event)
 
     def start(self,event):
@@ -386,9 +421,13 @@ class PlayAsteroids(Game):
         return self.report("Current Health: "+str(self.ship.health))
 
     def give_tot_score(self):
-        return self.report(Player_Name+", Your Total Score is: "+str(self.tot_score))
+        return self.report(Player_Name.title()+", Your Total Score is: "+str(self.tot_score))
         
     def update(self):
+        if len(self.commands) > 0:
+            self.movement()
+        else:
+            self.ship.auto_slowdown()
         #Are we waiting to toss asteroids out?
         if self.before_start_ticks > 0:
             self.before_start_ticks -= 1
@@ -410,11 +449,33 @@ class PlayAsteroids(Game):
             self.give_tot_score()
             self.report()  
 
+class StartPage(Frame):
+    def __init__(self):
+        self.root = Tk()
+        Frame.__init__(self, self.root, width=800, height=600) 
+        self.grid(column=0, row=0, sticky=(N, W, E, S))
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)  
 
+        startGameButton = Button(self, text="Start Game", command=self.startGame)
+        startGameButton.grid(column=1, row=2, sticky=S) 
 
-Player_Name=input("Hi I'm AstroSheep. I eat Asteroids. And you are? ")
-root = Tk()
-game = PlayAsteroids(root)
-while not game.GAME_OVER:    
-        time.sleep(1.0/60.0)
-        game.update()
+        titleFont = font.Font(family='Helvetica', size=36, weight='bold')
+        self.titleLabel = Label(self, font = titleFont, text='ASTEROIDS')
+        self.titleLabel.grid(column=1, row=0, sticky=(W, E))
+
+        spaceshipPhoto = PhotoImage(file='spaceship2.gif')
+        photoLabel = Label(self, image=spaceshipPhoto, width=800, height=600)
+        photoLabel.pack()
+        #photoLabel.grid(column=1, row=1, sticky=(W, E))
+        self.pack()
+
+    def startGame(self):
+        print("start!")
+x = StartPage()
+#Player_Name=input("Hi! I'm AstroShip. I DESTROY Asteroids. And you are? ")
+#root = Tk()
+#game = PlayAsteroids(root)
+#while not game.GAME_OVER:    
+#        time.sleep(1.0/60.0)
+#        game.update()#

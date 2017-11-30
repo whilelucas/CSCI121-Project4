@@ -48,6 +48,7 @@ class Game(Frame):
     #
     def __init__(self, root, name, w, h, ww, wh, topology = 'wrapped', console_lines = 0):
 
+        self.commands = []
         # Register the world coordinate and graphics parameters.
         self.WINDOW_WIDTH = ww
         self.WINDOW_HEIGHT = wh
@@ -58,7 +59,6 @@ class Game(Frame):
         self.agents = []
         self.GAME_OVER = False
 
-        self.commands = []
         # Initialize the graphics window.
         self.root = root
         self.root.title(name)
@@ -92,8 +92,10 @@ class Game(Frame):
 
     def trim(self,agent):
         if self.topology == 'wrapped':
+        #if issubclass(type(agent),Asteroid):
             agent.position = self.bounds.wrap(agent.position)
         elif self.topology == 'bound':
+        #elif not issubclass(type(agent),Asteroid):
             agent.position = self.bounds.clip(agent.position)
         elif self.topology == 'open':
             pass
@@ -144,10 +146,10 @@ class Game(Frame):
         #print("MOUSE RELEASED",self.mouse_down)
 
     def handle_keypress(self,event):
-        if not event.char in self.commands and len(self.commands) < 2:
-            self.commands.append(event.char)
         if event.char == 'q':
             self.GAME_OVER = True
+        if not event.char in self.commands and len(self.commands) < 2 and event.char != ' ':
+            self.commands.append(event.char)
 
     def handle_keyrelease(self,event):
         if event.char in self.commands:
