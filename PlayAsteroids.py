@@ -449,33 +449,32 @@ class PlayAsteroids(Game):
             self.give_tot_score()
             self.report()  
 
-class StartPage(Frame):
-    def __init__(self):
-        self.root = Tk()
-        Frame.__init__(self, self.root, width=800, height=600) 
-        self.grid(column=0, row=0, sticky=(N, W, E, S))
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)  
-
-        startGameButton = Button(self, text="Start Game", command=self.startGame)
-        startGameButton.grid(column=1, row=2, sticky=S) 
-
-        titleFont = font.Font(family='Helvetica', size=36, weight='bold')
-        self.titleLabel = Label(self, font = titleFont, text='ASTEROIDS')
-        self.titleLabel.grid(column=1, row=0, sticky=(W, E))
-
-        spaceshipPhoto = PhotoImage(file='spaceship2.gif')
-        photoLabel = Label(self, image=spaceshipPhoto, width=800, height=600)
-        photoLabel.pack()
-        #photoLabel.grid(column=1, row=1, sticky=(W, E))
-        self.pack()
-
-    def startGame(self):
-        print("start!")
-x = StartPage()
-#Player_Name=input("Hi! I'm AstroShip. I DESTROY Asteroids. And you are? ")
-#root = Tk()
-#game = PlayAsteroids(root)
-#while not game.GAME_OVER:    
-#        time.sleep(1.0/60.0)
-#        game.update()#
+#class StartPage(Frame):
+#    def __init__(self):
+#        self.root = Tk()
+#        Frame.__init__(self, self.root, width=800, height=600) 
+#        self.grid(column=0, row=0, sticky=(N, W, E, S))
+#        self.columnconfigure(0, weight=1)
+#        self.rowconfigure(0, weight=1)  
+#
+#        startGameButton = Button(self, text="Start Game", command=self.startGame)
+#        startGameButton.grid(column=1, row=2, sticky=S) 
+#
+#        titleFont = font.Font(family='Helvetica', size=36, weight='bold')
+#        self.titleLabel = Label(self, font = titleFont, text='ASTEROIDS')
+#        self.titleLabel.grid(column=1, row=0, sticky=(W, E))
+#
+#        spaceshipPhoto = PhotoImage(file='spaceship2.gif')
+#        photoLabel = Label(self, image=spaceshipPhoto, width=800, height=600)
+#        photoLabel.pack()
+#        #photoLabel.grid(column=1, row=1, sticky=(W, E))
+#        self.pack()
+#
+#    def startGame(self):
+#        print("start!")
+Player_Name=input("Hi! I'm AstroShip. I DESTROY Asteroids. And you are? ")
+root = Tk()
+game = PlayAsteroids(root)
+while not game.GAME_OVER:    
+        time.sleep(1.0/60.0)
+        game.update()#
