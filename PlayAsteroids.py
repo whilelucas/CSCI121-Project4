@@ -1,17 +1,13 @@
 from tkinter import *
 from tkinter import font
 from tkinter import ttk
-from Game import Game, Agent
+from Game import *
 from geometry import Point2D, Vector2D
 import math
 import random
 import time
 
 TIME_STEP = 0.5
-FORWARDLEFT  = 'forwardleft'
-FORWARDRIGHT = 'forwardright'
-BACKLEFT     = 'backleft'
-BACKRIGHT    = 'backright'
 
 class MovingBody(Agent):
 
@@ -203,7 +199,8 @@ class Photon(MovingBody):
         self.age  = 0
         sourceSpeed = source.get_heading() if source.forward else (source.get_heading() * 2)
         v0 = source.velocity + (sourceSpeed * self.INITIAL_SPEED)
-        MovingBody.__init__(self, source.position, v0, world) 
+        sourceShape = source.shape()
+        MovingBody.__init__(self, sourceShape[0], v0, world) 
 
     def lifetime(self):
         if self.world.level == 2:
@@ -244,9 +241,6 @@ class Photon(MovingBody):
 
 class Ship(MovingBody):
     TURNS_IN_360   = 24
-    #IMPULSE_FRAMES = 2
-    #ACCELERATION   = 0.03
-    #MAX_SPEED      = 1.0
     IS_HIT=False
     forward = True
     
@@ -277,20 +271,19 @@ class Ship(MovingBody):
         self.angle += rotation
 
     def circular(self, direction):
-        print(direction)
-        if direction == BACKRIGHT:
+        if direction == SET_BACKRIGHT:
             self.forward = False
             self.rotate(False,False)
             self.velocity = -self.get_heading()
-        elif direction == BACKLEFT:
+        elif direction == SET_BACKLEFT:
             self.forward = False
             self.rotate(True,False)
             self.velocity = -self.get_heading()
-        elif direction == FORWARDRIGHT:
+        elif direction == SET_FORWARDRIGHT:
             self.forward = True
             self.rotate(False,False)
             self.velocity = self.get_heading()
-        elif direction == FORWARDLEFT:
+        elif direction == SET_FORWARDLEFT:
             self.forward = True
             self.rotate(True,False)
             self.velocity = self.get_heading()
@@ -303,7 +296,6 @@ class Ship(MovingBody):
         if self.velocity == Vector2D():
             return
         self.velocity /= 1.005
-        print(self.velocity.magnitude())
         if self.velocity.magnitude() < 0.75:
             self.velocity = Vector2D()
             self.forward = True
@@ -347,8 +339,7 @@ class Ship(MovingBody):
                 if t.is_hit_by_poly(self):
                     t.explode()
                     IS_HIT=True
-                    self.health-=1    
-                    print(self.health)                
+                    self.health-=1               
                     return
 
 class PlayAsteroids(Game):
@@ -361,7 +352,7 @@ class PlayAsteroids(Game):
         Game.__init__(self,root,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped',console_lines=7)
 
         self.report("Welcome, "+Player_Name.title()+"!")
-        self.report("Hit 'j' and 'l' to turn, 'i' to create thrust, 'k' to move backwards and the spacebar to shoot. Press 'q' to quit.")
+        self.report("Hit 'j' and 'l' to turn, 'i' to create thrust, 'k' to move backwards and the spacebar to shoot. Press 'q' to pause.")
         self.report("Press 'a' to start!")
         self.report()
 
@@ -379,28 +370,18 @@ class PlayAsteroids(Game):
         return min(2 + self.level,self.MAX_ASTEROIDS)
 
     def movement(self):
-        if len(self.commands) == 2 and (('i' in self.commands and 'j' in self.commands) or ('k' in self.commands and 'j' in self.commands) or ('i' in self.commands and 'l' in self.commands) or ('k' in self.commands and 'l' in self.commands)):
-            direction = ""
-            if 'i' in self.commands and 'j' in self.commands:
-                direction = FORWARDLEFT
-            elif 'k' in self.commands and 'j' in self.commands:
-                direction = BACKLEFT   
-            elif 'i' in self.commands and 'l' in self.commands:
-                direction = FORWARDRIGHT
-            elif 'k' in self.commands and 'l' in self.commands:
-                direction = BACKRIGHT
-            self.ship.circular(direction)
+        if len(self.commands) == 2 and ((self.commands == SET_FORWARDLEFT) or (self.commands == SET_FORWARDRIGHT) or (self.commands == SET_BACKLEFT) or (self.commands == SET_BACKRIGHT)):
+            self.ship.circular(self.commands)
         elif len(self.commands) == 1:
-            command = self.commands[0]
-            if command == 'i':
+            command = list(self.commands)[0]
+            if command == KEY_UP:
                 self.ship.normalMovement(True)
-            elif command == 'j':
+            elif command == KEY_LEFT:
                 self.ship.rotate(True)
-            elif command == 'l':
+            elif command == KEY_RIGHT:
                 self.ship.rotate(False)
-            elif command == 'k':
+            elif command == KEY_DOWN:
                 self.ship.normalMovement(False)        
-
     def handle_keypress(self,event):
         Game.handle_keypress(self,event)
         if event.char == ' ':
@@ -408,7 +389,7 @@ class PlayAsteroids(Game):
         self.start(event)
 
     def start(self,event):
-        if event.char=='a':
+        if event.char==KEY_START:
             return True              
 
     def give_score(self):
@@ -424,57 +405,67 @@ class PlayAsteroids(Game):
         return self.report(Player_Name.title()+", Your Total Score is: "+str(self.tot_score))
         
     def update(self):
-        if len(self.commands) > 0:
-            self.movement()
+        if not self.GAME_OVER:
+            if len(self.commands) > 0:
+                self.movement()
+            else:
+                self.ship.auto_slowdown()
+            #Are we waiting to toss asteroids out?
+            #if self.before_start_ticks > 0:
+            #    self.before_start_ticks -= 1
+            #else:
+            #    self.started = True
+            
+            #Should we toss a new asteroid out?
+            if self.started:
+                tense = (self.number_of_asteroids >= self.max_asteroids())
+                tense = tense or (self.number_of_shrapnel >= 2*self.level)
+                if not tense and random.random() < self.INTRODUCE_CHANCE:
+                    LargeAsteroid(self)
+    
+            Game.update(self)  
+            if self.started:
+                self.give_score()
+                self.give_level()
+                self.give_health()
+                self.give_tot_score()
+                self.report()
         else:
-            self.ship.auto_slowdown()
-        #Are we waiting to toss asteroids out?
-        if self.before_start_ticks > 0:
-            self.before_start_ticks -= 1
-        else:
+            Frame.update(self)
+    def handle_keypress(self,event):
+        Game.handle_keypress(self, event)
+        if event.char == KEY_START:
             self.started = True
-        
-        #Should we toss a new asteroid out?
-        if self.started:
-            tense = (self.number_of_asteroids >= self.max_asteroids())
-            tense = tense or (self.number_of_shrapnel >= 2*self.level)
-            if not tense and random.random() < self.INTRODUCE_CHANCE:
-                LargeAsteroid(self)
+        elif event.char == KEY_SHOOT:
+            self.ship.shoot()
 
-        Game.update(self)  
-        if self.started:
-            self.give_score()
-            self.give_level()
-            self.give_health()
-            self.give_tot_score()
-            self.report()  
+class StartPage(Frame):
+    game = None
+    def __init__(self):
+        self.root = Tk()
+        Frame.__init__(self, self.root, width=800, height=600) 
 
-#class StartPage(Frame):
-#    def __init__(self):
-#        self.root = Tk()
-#        Frame.__init__(self, self.root, width=800, height=600) 
-#        self.grid(column=0, row=0, sticky=(N, W, E, S))
-#        self.columnconfigure(0, weight=1)
-#        self.rowconfigure(0, weight=1)  
-#
-#        startGameButton = Button(self, text="Start Game", command=self.startGame)
-#        startGameButton.grid(column=1, row=2, sticky=S) 
-#
-#        titleFont = font.Font(family='Helvetica', size=36, weight='bold')
-#        self.titleLabel = Label(self, font = titleFont, text='ASTEROIDS')
-#        self.titleLabel.grid(column=1, row=0, sticky=(W, E))
-#
-#        spaceshipPhoto = PhotoImage(file='spaceship2.gif')
-#        photoLabel = Label(self, image=spaceshipPhoto, width=800, height=600)
-#        photoLabel.pack()
-#        #photoLabel.grid(column=1, row=1, sticky=(W, E))
-#        self.pack()
-#
-#    def startGame(self):
-#        print("start!")
+        self.grid_propagate(0)
+        self.grid(column=0, row=0)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)  
+
+        startGameButton = Button(self, text="Start Game", command=self.startGame)
+        startGameButton.grid(column=0, row=0,sticky = (N,S))
+
+        titleFont = font.Font(family='Helvetica', size=36, weight='bold')
+        self.titleLabel = Label(self, font = titleFont, text='ASTEROIDS')
+        self.titleLabel.grid(column=0, row=0,sticky=N)
+
+    def startGame(self):
+        self.game = PlayAsteroids(self)
+        self.game.tkraise()
+
 Player_Name=input("Hi! I'm AstroShip. I DESTROY Asteroids. And you are? ")
 root = Tk()
+root.title("Asteroids - The Game")
 game = PlayAsteroids(root)
-while not game.GAME_OVER:    
-        time.sleep(1.0/60.0)
-        game.update()#
+while True:
+    time.sleep(1.0/60.0)
+    game.update()
+#s = StartPage()
