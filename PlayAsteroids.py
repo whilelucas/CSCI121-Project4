@@ -57,6 +57,7 @@ class Shootable(MovingBody):
     def explode(self):
         self.world.score += self.WORTH
         self.world.tot_score+=self.WORTH
+        self.world.auxiliaryHealth+=self.HEALTH
         if self.world.score>=70:
             self.world.level+=1            
             self.world.score=0            
@@ -68,6 +69,7 @@ class Shootable(MovingBody):
 
 class Asteroid(Shootable):
     WORTH     = 5
+    HEALTH    = 0
     MIN_SPEED = 0.1
     MAX_SPEED = 0.3
     SIZE      = 3.0
@@ -125,6 +127,8 @@ class ParentAsteroid(Asteroid):
         Asteroid.explode(self)
         self.world.number_of_asteroids -= 1
 
+
+
 class Ember(MovingBody):
     INITIAL_SPEED = 2.0
     SLOWDOWN      = 0.2
@@ -132,7 +136,7 @@ class Ember(MovingBody):
 
     def __init__(self, position0, world):
         velocity0 = Vector2D.random() * self.INITIAL_SPEED
-        MovingBody.__init__(self, position0, velocity0, world)
+        MovingBody.__init__(self, position0, velocity0, world)        
 
     def color(self):
         white_hot  = "#FFFFFF"
@@ -149,7 +153,7 @@ class Ember(MovingBody):
         return -self.velocity.direction() * self.SLOWDOWN
 
     def update(self):
-        MovingBody.update(self)
+        MovingBody.update(self)              
         if self.velocity.magnitude() < self.TOO_SLOW:
             self.leave()
 
@@ -159,28 +163,51 @@ class ShrapnelAsteroid(Asteroid):
         velocity0 = self.choose_velocity()
         Asteroid.__init__(self, position0, velocity0, world)
 
-    def explode(self):
+    def explode(self):         
         Asteroid.explode(self)
         self.world.number_of_shrapnel -= 1
 
-class SmallAsteroid(ShrapnelAsteroid):
-    WORTH           = 20
+
+class HealthAsteroid(ShrapnelAsteroid):
+    WORTH           = 0
+    HEALTH          = 1
     MIN_SPEED       = Asteroid.MIN_SPEED * 2.0
     MAX_SPEED       = Asteroid.MAX_SPEED * 2.0
-    SIZE            = Asteroid.SIZE / 2.0
+    SIZE            = Asteroid.SIZE / 3.0    
     SHRAPNEL_CLASS  = Ember
-    SHRAPNEL_PIECES = 8
+    SHRAPNEL_PIECES = 20
+
+
+    def color(self):
+        return "#FF07FF"
+
+class SmallAsteroid(ShrapnelAsteroid):
+    WORTH           = 20
+    HEALTH          = 0
+    MIN_SPEED       = Asteroid.MIN_SPEED * 2.0
+    MAX_SPEED       = Asteroid.MAX_SPEED * 2.0
+    SIZE            = Asteroid.SIZE / 2    
+    def explode(self):        
+        if random.randint(0,10)==1:  
+            self.SHRAPNEL_CLASS  = HealthAsteroid
+            self.SHRAPNEL_PIECES = 1
+        else:
+            self.SHRAPNEL_CLASS = Ember
+            self.SHRAPNEL_PIECES = 20
+        ShrapnelAsteroid.explode(self)
 
     def color(self):
         return "#A8B0C0"
 
+
 class MediumAsteroid(ShrapnelAsteroid):
     WORTH           = 10
+    HEALTH          = 0
     MIN_SPEED       = Asteroid.MIN_SPEED * math.sqrt(2.0)
     MAX_SPEED       = Asteroid.MAX_SPEED * math.sqrt(2.0)
-    SIZE            = Asteroid.SIZE / math.sqrt(2.0)
-    SHRAPNEL_CLASS  = SmallAsteroid
-    SHRAPNEL_PIECES = 3
+    SIZE            = Asteroid.SIZE / math.sqrt(2.0)       
+    SHRAPNEL_CLASS  = SmallAsteroid 
+    SHRAPNEL_PIECES = 4
 
     def color(self):
         return "#7890A0"
@@ -192,15 +219,15 @@ class LargeAsteroid(ParentAsteroid):
     def color(self):
         return "#9890A0"
 
-class Photon(MovingBody):
-    INITIAL_SPEED = 2.0 * SmallAsteroid.MAX_SPEED       
-
+class Photon(MovingBody): 
+    INITIAL_SPEED = 2.0 * SmallAsteroid.MAX_SPEED         
+    
     def __init__(self,source,world):
         self.age  = 0
         sourceSpeed = source.get_heading() if source.forward else (source.get_heading() * 2)
         v0 = source.velocity + (sourceSpeed * self.INITIAL_SPEED)
         sourceShape = source.shape()
-        MovingBody.__init__(self, sourceShape[0], v0, world) 
+        MovingBody.__init__(self, sourceShape[0], v0, world)     
 
     def lifetime(self):
         if self.world.level == 2:
@@ -239,10 +266,12 @@ class Photon(MovingBody):
                     self.leave()
                     return
 
+
 class Ship(MovingBody):
     TURNS_IN_360   = 24
     IS_HIT=False
     forward = True
+    ACTIVE= True
     
     def __init__(self,world):
         position0    = Point2D()
@@ -336,10 +365,10 @@ class Ship(MovingBody):
         else:
             targets = [a for a in self.world.agents if isinstance(a,Shootable)]
             for t in targets:
-                if t.is_hit_by_poly(self):
-                    t.explode()
-                    IS_HIT=True
-                    self.health-=1               
+                if t.is_hit_by_poly(self) and self.ACTIVE==True:
+                    t.explode()                    
+                    self.health-=1  
+                    self.ACTIVE==False             
                     return
 
 class PlayAsteroids(Game):
@@ -363,8 +392,10 @@ class PlayAsteroids(Game):
         self.tot_score = 0
         self.before_start_ticks = self.DELAY_START
         self.started = False
+        self.auxiliaryHealth=0
 
         self.ship = Ship(self)
+        
 
     def max_asteroids(self):
         return min(2 + self.level,self.MAX_ASTEROIDS)
@@ -382,11 +413,7 @@ class PlayAsteroids(Game):
                 self.ship.rotate(False)
             elif command == KEY_DOWN:
                 self.ship.normalMovement(False)        
-    def handle_keypress(self,event):
-        Game.handle_keypress(self,event)
-        if event.char == ' ':
-            self.ship.shoot()
-        self.start(event)
+    
 
     def start(self,event):
         if event.char==KEY_START:
@@ -399,7 +426,11 @@ class PlayAsteroids(Game):
         return self.report("Current Level: "+str(self.level))
 
     def give_health(self):
-        return self.report("Current Health: "+str(self.ship.health))
+        if self.ship.health<=0:
+            self.GAME_OVER=True
+            return self.report("HEALTH ZERO! GAME OVER!!!")            
+        else:
+            return self.report("Current Health: "+str(self.ship.health+self.auxiliaryHealth))
 
     def give_tot_score(self):
         return self.report(Player_Name.title()+", Your Total Score is: "+str(self.tot_score))
@@ -432,6 +463,7 @@ class PlayAsteroids(Game):
                 self.report()
         else:
             Frame.update(self)
+
     def handle_keypress(self,event):
         Game.handle_keypress(self, event)
         if event.char == KEY_START:
@@ -465,7 +497,7 @@ Player_Name=input("Hi! I'm AstroShip. I DESTROY Asteroids. And you are? ")
 root = Tk()
 root.title("Asteroids - The Game")
 game = PlayAsteroids(root)
-while True:
+while not game.GAME_OVER:
     time.sleep(1.0/60.0)
     game.update()
 #s = StartPage()
