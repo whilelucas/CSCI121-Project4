@@ -289,7 +289,6 @@ class Ship(MovingBody):
     IS_HIT=False
     forward = True
     DELAY_INVULNERABLE = 200
-    got_hit_ticks = DELAY_INVULNERABLE
     def __init__(self,world):
         got_hit_ticks = self.DELAY_INVULNERABLE
         position0    = Point2D(0,-60)
@@ -301,18 +300,20 @@ class Ship(MovingBody):
         self.speed   = 0.0
         self.angle   = 90.0
         self.impulse = 0
-        self.health=10
+        self.health  = 5
         self.position = Point2D(0,-60)
         self.velocity = Vector2D()
+        self.IS_HIT = False
+        self.got_hit_ticks = self.DELAY_INVULNERABLE
 
     def color(self):
         if self.got_hit_ticks == self.DELAY_INVULNERABLE:
-            if self.health<=5:
+            if self.health <= 2:
                 return "#B22222"
             else:
                 return "#F0C080"
         else:
-            if self.health <= 5:
+            if self.health <= 2:
                 return "#B22222" if self.got_hit_ticks%10==0 else "#4C0D0D"
             else:
                 return "#F0C080" if self.got_hit_ticks%10==0 else "#ED9521"
@@ -429,7 +430,7 @@ class PlayAsteroids(Game):
         self.score = 0
         self.HealthFromAsteroids = 0       
         self.tot_score = 0
-        self.clear()
+        self.agents = [self.ship]
         self.GAME_OVER = False
         self.GAME_STARTED = False
 
@@ -500,7 +501,7 @@ class PlayAsteroids(Game):
                     self.createText(textPosition, self.font(12), self.reportStr(), 70)
             if not self.GAME_STARTED:
                 text = "Welcome, "+Player_Name.title()+"!\n\n"
-                text += "Asteroids are bad. Your job is to destroy them ALL. And remember, touching crashing into asteroids damgages your ship!\n\n"
+                text += "Asteroids are bad. Your job is to destroy them ALL. And remember, crashing into asteroids damgages your ship!\n\n"
                 text += "Hit 'a' and 'd' to turn left and right, 'w' to move forward, 's' to move backwards, and the space bar to shoot.\nGive the controls a try if you want!\n\n"
                 text += "Look out for special pink asteroids.\nThey increase your health if you destroy 'em!\n\n"
                 text += "Press 'p' if you need to pause the game at any time.\n\n"
