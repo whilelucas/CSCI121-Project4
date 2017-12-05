@@ -1,5 +1,5 @@
 from tkinter import *
-from geometry import Bounds, Point2D
+from geometry import *
 import sys
 
 FORWARDLEFT  = 'forwardleft'
@@ -7,13 +7,13 @@ FORWARDRIGHT = 'forwardright'
 BACKLEFT     = 'backleft'
 BACKRIGHT    = 'backright'
 
-KEY_UP    = 'i'
-KEY_DOWN  = 'k'
-KEY_LEFT  = 'j'
-KEY_RIGHT = 'l'
+KEY_UP    = 'w'
+KEY_DOWN  = 's'
+KEY_LEFT  = 'a'
+KEY_RIGHT = 'd'
 KEY_SHOOT = ' '
-KEY_START = 'a'
-KEY_PAUSE = 'q'
+KEY_START = 'b'
+KEY_PAUSE = 'p'
 
 SET_FORWARDLEFT  = {KEY_UP,KEY_LEFT}
 SET_FORWARDRIGHT = {KEY_UP,KEY_RIGHT}
@@ -65,8 +65,6 @@ class Game(Frame):
     # yields "SPACEWAR" topology, i.e. a torus.)
     #
     def __init__(self, root, name, w, h, ww, wh, topology = 'wrapped', console_lines = 0):
-
-        self.commands = set()
         # Register the world coordinate and graphics parameters.
         self.WINDOW_WIDTH = ww
         self.WINDOW_HEIGHT = wh
@@ -76,11 +74,18 @@ class Game(Frame):
         # Populate the world with creatures
         self.agents = []
         self.GAME_OVER = False
+        self.GAME_PAUSED = False
+        self.GAME_STARTED = False
 
         # Initialize the graphics window.
         self.root = root
-        #self.root.title(name)
+
+        #A set of commands to be read in 'update'.
+        self.commands = set()
+
         Frame.__init__(self, self.root)
+
+        #Canvas: Where drawing happens!
         self.canvas = Canvas(self.root, width=self.WINDOW_WIDTH, height=self.WINDOW_HEIGHT)
 
         # Handle mouse pointer motion and keypress events.
@@ -100,35 +105,17 @@ class Game(Frame):
             self.text = None
         self.pack()
 
-    def report(self,line=""):
-        line += "\n"
-        if self.text == None:
-            print(line)
-        else:
-            self.text.insert(END,line)
-            self.text.see(END)
-
     def trim(self,agent):
         if self.topology == 'wrapped':
             agent.position = self.bounds.wrap(agent.position)
         elif self.topology == 'bound':
             agent.position = self.bounds.clip(agent.position)
-        #elif self.topology == 'open':
-            #pass
 
     def add(self, agent):
         self.agents.append(agent)
 
     def remove(self, agent):
         self.agents.remove(agent)
-
-    def update(self):
-        for agent in self.agents:
-            agent.update()
-        self.clear()
-        for agent in self.agents:
-            self.draw_shape(agent.shape(), agent.color())
-        Frame.update(self)
 
     def draw_shape(self, shape, color):
         wh,ww = self.WINDOW_HEIGHT,self.WINDOW_WIDTH
@@ -145,32 +132,11 @@ class Game(Frame):
         self.canvas.create_rectangle(0, 0, self.WINDOW_WIDTH, self.WINDOW_HEIGHT, fill="#000000")
 
     def handle_keypress(self,event):
-        if event.char == KEY_PAUSE:
-            self.GAME_OVER = not self.GAME_OVER
-        elif event.char == 'c':
-            self.canvas.create_oval(50,50,100,100,dash=(3,5),fill='red',outline='blue')
+        if event.char == KEY_PAUSE and self.GAME_STARTED:
+            self.GAME_PAUSED = not self.GAME_PAUSED
         elif not event.char in self.commands and len(self.commands) < 2 and event.char != ' ':
-            self.commands.add(event.char)
+            self.commands.add(event.char.lower())
 
     def handle_keyrelease(self,event):
         if event.char in self.commands:
             self.commands.remove(event.char)
-
-    #def window_to_world(self,x,y):
-    #    return self.bounds.point_at(x/self.WINDOW_WIDTH, 1.0-y/self.WINDOW_HEIGHT)
-
-    #def handle_mouse_motion(self,event):
-    #    self.mouse_position = self.window_to_world(event.x,event.y)
-    #    #print("MOUSE MOVED",self.mouse_position,self.mouse_down)
-
-    #def handle_mouse_press(self,event):
-    #    self.mouse_down = True
-    #    self.handle_mouse_motion(event)
-    #    #print("MOUSE CLICKED",self.mouse_down)
-
-    #def handle_mouse_release(self,event):
-    #    self.mouse_down = False
-    #    self.handle_mouse_motion(event)
-    #    #print("MOUSE RELEASED",self.mouse_down)
-
-    

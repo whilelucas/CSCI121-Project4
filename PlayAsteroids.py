@@ -1,13 +1,33 @@
-from tkinter import *
 from tkinter import font
-from tkinter import ttk
 from Game import *
-from geometry import Point2D, Vector2D
-import math
-import random
 import time
+from time import localtime, strftime
 
 TIME_STEP = 0.5
+BIG_FONT = "bigfont"
+SMALL_FONT = "smallfont"
+SCORES_FILE = "scores.txt"
+
+class Player:
+
+    @classmethod
+    def fromString(cls,s):
+        name = s.split(': ')[0]
+        score = int(s.split(' ')[1])
+        date = s.split(' on ')[1]
+        return Player(name, score, date)
+
+    def __init__(self, name, score, date):
+        self.name = name
+        self.score = score
+        self.date = date
+
+    def to_string(self):
+        return str(self.name) + ": " + str(self.score) + " points, on " + self.date
+
+    __str__ = to_string
+    __repr__ = to_string
+
 
 class MovingBody(Agent):
 
@@ -57,8 +77,8 @@ class Shootable(MovingBody):
     def explode(self):
         self.world.score += self.WORTH
         self.world.tot_score+=self.WORTH
-        self.world.auxiliaryHealth+=self.HEALTH
-        if self.world.score>=70:
+        self.world.HealthFromAsteroids+=self.HEALTH_ADV
+        if self.world.score>=500:
             self.world.level+=1            
             self.world.score=0            
         if self.SHRAPNEL_CLASS == None:
@@ -69,9 +89,9 @@ class Shootable(MovingBody):
 
 class Asteroid(Shootable):
     WORTH     = 5
-    HEALTH    = 0
+    HEALTH_ADV=0
     MIN_SPEED = 0.1
-    MAX_SPEED = 0.3
+    MAX_SPEED = 0.2
     SIZE      = 3.0
 
     def __init__(self, position0, velocity0, world):
@@ -88,7 +108,7 @@ class Asteroid(Shootable):
         dA = 2.0 * math.pi / 15.0
         center = Point2D(0.0,0.0)
         self.polygon = []
-        for i in range(15):
+        for i in range(10):
             if i % 3 == 0 and random.random() < 0.2:
                 r = self.radius/2.0 + random.random() * 0.25
             else:
@@ -127,8 +147,6 @@ class ParentAsteroid(Asteroid):
         Asteroid.explode(self)
         self.world.number_of_asteroids -= 1
 
-
-
 class Ember(MovingBody):
     INITIAL_SPEED = 2.0
     SLOWDOWN      = 0.2
@@ -136,7 +154,7 @@ class Ember(MovingBody):
 
     def __init__(self, position0, world):
         velocity0 = Vector2D.random() * self.INITIAL_SPEED
-        MovingBody.__init__(self, position0, velocity0, world)        
+        MovingBody.__init__(self, position0, velocity0, world)
 
     def color(self):
         white_hot  = "#FFFFFF"
@@ -153,7 +171,7 @@ class Ember(MovingBody):
         return -self.velocity.direction() * self.SLOWDOWN
 
     def update(self):
-        MovingBody.update(self)              
+        MovingBody.update(self)
         if self.velocity.magnitude() < self.TOO_SLOW:
             self.leave()
 
@@ -163,21 +181,19 @@ class ShrapnelAsteroid(Asteroid):
         velocity0 = self.choose_velocity()
         Asteroid.__init__(self, position0, velocity0, world)
 
-    def explode(self):         
+    def explode(self):
         Asteroid.explode(self)
         self.world.number_of_shrapnel -= 1
 
-
 class HealthAsteroid(ShrapnelAsteroid):
     WORTH           = 0
-    HEALTH          = 1
+    HEALTH_ADV         = 1
     MIN_SPEED       = Asteroid.MIN_SPEED * 2.0
     MAX_SPEED       = Asteroid.MAX_SPEED * 2.0
     SIZE            = Asteroid.SIZE / 3.0    
     SHRAPNEL_CLASS  = Ember
     SHRAPNEL_PIECES = 20
-
-
+ 
     def color(self):
         return "#FF07FF"
 
@@ -186,6 +202,9 @@ class SmallAsteroid(ShrapnelAsteroid):
     HEALTH          = 0
     MIN_SPEED       = Asteroid.MIN_SPEED * 2.0
     MAX_SPEED       = Asteroid.MAX_SPEED * 2.0
+    SIZE            = Asteroid.SIZE / 2.0
+    SHRAPNEL_CLASS  = Ember
+    SHRAPNEL_PIECES = 8
     SIZE            = Asteroid.SIZE / 2    
     def explode(self):        
         if random.randint(0,10)==1:  
@@ -195,19 +214,18 @@ class SmallAsteroid(ShrapnelAsteroid):
             self.SHRAPNEL_CLASS = Ember
             self.SHRAPNEL_PIECES = 20
         ShrapnelAsteroid.explode(self)
-
+  
     def color(self):
-        return "#A8B0C0"
-
+          return "#A8B0C0"
 
 class MediumAsteroid(ShrapnelAsteroid):
     WORTH           = 10
-    HEALTH          = 0
+    HEALTH_ADV=0
     MIN_SPEED       = Asteroid.MIN_SPEED * math.sqrt(2.0)
     MAX_SPEED       = Asteroid.MAX_SPEED * math.sqrt(2.0)
-    SIZE            = Asteroid.SIZE / math.sqrt(2.0)       
-    SHRAPNEL_CLASS  = SmallAsteroid 
-    SHRAPNEL_PIECES = 4
+    SIZE            = Asteroid.SIZE / math.sqrt(2.0)
+    SHRAPNEL_CLASS  = SmallAsteroid
+    SHRAPNEL_PIECES = 3
 
     def color(self):
         return "#7890A0"
@@ -219,15 +237,15 @@ class LargeAsteroid(ParentAsteroid):
     def color(self):
         return "#9890A0"
 
-class Photon(MovingBody): 
-    INITIAL_SPEED = 2.0 * SmallAsteroid.MAX_SPEED         
-    
+class Photon(MovingBody):
+    INITIAL_SPEED = 2.0 * SmallAsteroid.MAX_SPEED       
+
     def __init__(self,source,world):
         self.age  = 0
         sourceSpeed = source.get_heading() if source.forward else (source.get_heading() * 2)
         v0 = source.velocity + (sourceSpeed * self.INITIAL_SPEED)
         sourceShape = source.shape()
-        MovingBody.__init__(self, sourceShape[0], v0, world)     
+        MovingBody.__init__(self, sourceShape[0], v0, world) 
 
     def lifetime(self):
         if self.world.level == 2:
@@ -266,27 +284,38 @@ class Photon(MovingBody):
                     self.leave()
                     return
 
-
 class Ship(MovingBody):
     TURNS_IN_360   = 24
     IS_HIT=False
     forward = True
-    ACTIVE= True
-    
+    DELAY_INVULNERABLE = 200
+    got_hit_ticks = DELAY_INVULNERABLE
     def __init__(self,world):
-        position0    = Point2D()
+        got_hit_ticks = self.DELAY_INVULNERABLE
+        position0    = Point2D(0,-60)
         velocity0    = Vector2D(0.0,0.0)
         MovingBody.__init__(self,position0,velocity0,world)
+        self.restart()
+
+    def restart(self):
         self.speed   = 0.0
         self.angle   = 90.0
         self.impulse = 0
         self.health=10
+        self.position = Point2D(0,-60)
+        self.velocity = Vector2D()
 
     def color(self):
-        if self.health<=5:
-            return "#B22222"
-        return "#F0C080"
-
+        if self.got_hit_ticks == self.DELAY_INVULNERABLE:
+            if self.health<=5:
+                return "#B22222"
+            else:
+                return "#F0C080"
+        else:
+            if self.health <= 5:
+                return "#B22222" if self.got_hit_ticks%10==0 else "#4C0D0D"
+            else:
+                return "#F0C080" if self.got_hit_ticks%10==0 else "#ED9521"
     def get_heading(self):
         angle = self.angle * math.pi / 180.0
         return Vector2D(math.cos(angle), math.sin(angle))
@@ -322,12 +351,14 @@ class Ship(MovingBody):
         self.velocity = self.get_heading() if forward else -self.get_heading()
 
     def auto_slowdown(self):
-        if self.velocity == Vector2D():
-            return
-        self.velocity /= 1.005
-        if self.velocity.magnitude() < 0.75:
-            self.velocity = Vector2D()
-            self.forward = True
+        # *** Which is better? Slow down or stop altogether? ***
+        self.velocity = Vector2D()
+        #if self.velocity == Vector2D():
+        #    return
+        #self.velocity /= 1.005
+        #if self.velocity.magnitude() < 0.75:
+        #    self.velocity = Vector2D()
+        #    self.forward = True
 
     def shoot(self):
         Photon(self, self.world)
@@ -350,55 +381,67 @@ class Ship(MovingBody):
         else:
             return Vector2D(0.0,0.0)
 
-    #def trim_physics(self):
-    #    MovingBody.trim_physics(self)
-    #    m = self.velocity.magnitude()
-    #    if m > self.MAX_SPEED:
-    #        self.velocity = self.velocity * (self.MAX_SPEED / m)
-    #        self.impulse = 0
-
     def update(self):
         self.position += self.velocity * TIME_STEP
-        self.world.trim(self)          
-        if self.health <= 0:
-            self.leave()
+        self.world.trim(self)
+        if self.IS_HIT:
+            self.got_hit_ticks -= 1
+            if self.got_hit_ticks == 0:
+                self.IS_HIT = False
+                self.got_hit_ticks = self.DELAY_INVULNERABLE
         else:
             targets = [a for a in self.world.agents if isinstance(a,Shootable)]
             for t in targets:
-                if t.is_hit_by_poly(self) and self.ACTIVE==True:
-                    t.explode()                    
-                    self.health-=1  
-                    self.ACTIVE==False             
+                if t.is_hit_by_poly(self) and not self.IS_HIT:
+                    t.explode()
+                    self.IS_HIT=True
+                    self.health-=1               
                     return
 
 class PlayAsteroids(Game):
 
-    DELAY_START      = 150
-    MAX_ASTEROIDS    = 6
-    INTRODUCE_CHANCE = 0.01
+    MAX_ASTEROIDS      = 6
+    INTRODUCE_CHANCE   = 0.01
     
     def __init__(self,root):
-        Game.__init__(self,root,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped',console_lines=7)
+        Game.__init__(self,root,"ASTEROIDS!!!",60.0,45.0,800,600,topology='wrapped')
+        self.ship = Ship(self)
 
-        self.report("Welcome, "+Player_Name.title()+"!")
-        self.report("Hit 'j' and 'l' to turn, 'i' to create thrust, 'k' to move backwards and the spacebar to shoot. Press 'q' to pause.")
-        self.report("Press 'a' to start!")
-        self.report()
+        self.highScorePlayers = []
 
+        self.makeScores(SCORES_FILE)
+
+        self.restart()
+
+    def makeScores(self, file):
+        scoresFile = open(file,"r")
+        nextLine = scoresFile.readline().strip()
+        while nextLine != '':
+            self.highScorePlayers.append(Player.fromString(nextLine))
+            nextLine = scoresFile.readline().strip()
+        scoresFile.close()
+
+    def restart(self):
+        self.ship.restart()
         self.number_of_asteroids = 0
         self.number_of_shrapnel = 0
         self.level = 1
-        self.score = 0       
+        self.score = 0
+        self.HealthFromAsteroids = 0       
         self.tot_score = 0
-        self.before_start_ticks = self.DELAY_START
-        self.started = False
-        self.auxiliaryHealth=0
+        self.clear()
+        self.GAME_OVER = False
+        self.GAME_STARTED = False
 
-        self.ship = Ship(self)
-        
+    def reportStr(self):
+        level = str(self.level)
+        tot_score = str(self.tot_score)
+        health = str(self.ship.health+self.HealthFromAsteroids)
+        reportStr = "Score: " + tot_score + "\n" + "Level: " + level + "\n" + "Health: " + health
+        return reportStr
 
     def max_asteroids(self):
-        return min(2 + self.level,self.MAX_ASTEROIDS)
+        return min(3 + self.level,self.MAX_ASTEROIDS)
 
     def movement(self):
         if len(self.commands) == 2 and ((self.commands == SET_FORWARDLEFT) or (self.commands == SET_FORWARDRIGHT) or (self.commands == SET_BACKLEFT) or (self.commands == SET_BACKRIGHT)):
@@ -412,92 +455,87 @@ class PlayAsteroids(Game):
             elif command == KEY_RIGHT:
                 self.ship.rotate(False)
             elif command == KEY_DOWN:
-                self.ship.normalMovement(False)        
-    
+                self.ship.normalMovement(False)
 
-    def start(self,event):
-        if event.char==KEY_START:
-            return True              
+    def font(self, size):
+        return font.Font(family='Lucida Sans Typewriter',size=size)
+    def createText(self, position, font, text, width):
+        self.canvas.create_text(position.x,position.y,text=text,fill='white',font=font,width=width)
 
-    def give_score(self):
-        return self.report("Current Score: "+str(self.score))
+    def gameOver(self):
+        self.clear()
+        self.GAME_OVER = True
+        currentPlayer = Player(Player_Name, self.tot_score, strftime("%a, %d %b %Y %H:%M", localtime()))
+        self.highScorePlayers.append(currentPlayer)
+        self.highScorePlayers.sort(key=lambda x: x.score, reverse=True)
+        while len(self.highScorePlayers) > 5:
+            self.highScorePlayers.pop()
+        scoresFile = open(SCORES_FILE, 'w')
+        for plyr in self.highScorePlayers:
+            scoresFile.write(str(plyr) + "\n")
+        scoresFile.close()
+        textPosition = Point2D(game.WINDOW_WIDTH/2,100)
+        game.createText(textPosition, game.font(36), 'GAME OVER', textPosition.x/2)
+        game.createText(Point2D(textPosition.x, textPosition.y + 100), game.font(20), "High Scores", game.WINDOW_WIDTH)
+        scoreOutput = ""
+        for plyr in self.highScorePlayers:
+            scoreOutput += str(self.highScorePlayers.index(plyr) + 1) + ". " + str(plyr) + "\n"
+        game.createText(Point2D(textPosition.x, textPosition.y + 200), game.font(12), scoreOutput, game.WINDOW_WIDTH)
+        game.createText(Point2D(textPosition.x, textPosition.y + 300), game.font(20), "Press the space bar to restart!", game.WINDOW_WIDTH)
 
-    def give_level(self):
-        return self.report("Current Level: "+str(self.level))
 
-    def give_health(self):
-        if self.ship.health<=0:
-            self.GAME_OVER=True
-            return self.report("HEALTH ZERO! GAME OVER!!!")            
-        else:
-            return self.report("Current Health: "+str(self.ship.health+self.auxiliaryHealth))
-
-    def give_tot_score(self):
-        return self.report(Player_Name.title()+", Your Total Score is: "+str(self.tot_score))
-        
     def update(self):
-        if not self.GAME_OVER:
+        if not self.GAME_PAUSED:
             if len(self.commands) > 0:
                 self.movement()
             else:
                 self.ship.auto_slowdown()
-            #Are we waiting to toss asteroids out?
-            #if self.before_start_ticks > 0:
-            #    self.before_start_ticks -= 1
-            #else:
-            #    self.started = True
-            
-            #Should we toss a new asteroid out?
-            if self.started:
+            for agent in self.agents:
+                agent.update()
+            self.clear()
+            for agent in self.agents:
+                if self.GAME_STARTED or type(agent) == Ship:
+                    self.draw_shape(agent.shape(), agent.color())
+                    textPosition = Point2D(self.WINDOW_WIDTH - 70,40)
+                    self.createText(textPosition, self.font(12), self.reportStr(), 70)
+            if not self.GAME_STARTED:
+                text = "Welcome, "+Player_Name.title()+"!\n\n"
+                text += "Asteroids are bad. Your job is to destroy them ALL. And remember, touching crashing into asteroids damgages your ship!\n\n"
+                text += "Hit 'a' and 'd' to turn left and right, 'w' to move forward, 's' to move backwards, and the space bar to shoot.\nGive the controls a try if you want!\n\n"
+                text += "Look out for special pink asteroids.\nThey increase your health if you destroy 'em!\n\n"
+                text += "Press 'p' if you need to pause the game at any time.\n\n"
+                text += "Now, press 'b' to begin!"
+                textPosition = Point2D(self.WINDOW_WIDTH/2,self.WINDOW_HEIGHT/2)
+                self.createText(textPosition, self.font(14), text, textPosition.x*1.5)
+            else:
                 tense = (self.number_of_asteroids >= self.max_asteroids())
                 tense = tense or (self.number_of_shrapnel >= 2*self.level)
                 if not tense and random.random() < self.INTRODUCE_CHANCE:
                     LargeAsteroid(self)
-    
-            Game.update(self)  
-            if self.started:
-                self.give_score()
-                self.give_level()
-                self.give_health()
-                self.give_tot_score()
-                self.report()
+                if self.ship.health == 0:
+                    self.gameOver()
         else:
-            Frame.update(self)
+            textPosition = Point2D(self.WINDOW_WIDTH/2,self.WINDOW_HEIGHT/2)
+            self.createText(textPosition, self.font(36), 'GAME PAUSED', textPosition.x)
+        Frame.update(self)
 
     def handle_keypress(self,event):
+        if not self.GAME_STARTED and event.char == KEY_START:
+            self.GAME_STARTED = True
+            return
         Game.handle_keypress(self, event)
-        if event.char == KEY_START:
-            self.started = True
+        if self.GAME_OVER and event.char == KEY_SHOOT:
+            runGame(self)
         elif event.char == KEY_SHOOT:
             self.ship.shoot()
-
-class StartPage(Frame):
-    game = None
-    def __init__(self):
-        self.root = Tk()
-        Frame.__init__(self, self.root, width=800, height=600) 
-
-        self.grid_propagate(0)
-        self.grid(column=0, row=0)
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)  
-
-        startGameButton = Button(self, text="Start Game", command=self.startGame)
-        startGameButton.grid(column=0, row=0,sticky = (N,S))
-
-        titleFont = font.Font(family='Helvetica', size=36, weight='bold')
-        self.titleLabel = Label(self, font = titleFont, text='ASTEROIDS')
-        self.titleLabel.grid(column=0, row=0,sticky=N)
-
-    def startGame(self):
-        self.game = PlayAsteroids(self)
-        self.game.tkraise()
+def runGame(game):
+    game.restart()
+    while not game.GAME_OVER and game.ship in game.agents:
+        time.sleep(1.0/60.0)
+        game.update()
 
 Player_Name=input("Hi! I'm AstroShip. I DESTROY Asteroids. And you are? ")
 root = Tk()
 root.title("Asteroids - The Game")
 game = PlayAsteroids(root)
-while not game.GAME_OVER:
-    time.sleep(1.0/60.0)
-    game.update()
-#s = StartPage()
+runGame(game)
